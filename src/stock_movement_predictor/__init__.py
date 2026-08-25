@@ -1,13 +1,29 @@
 from .data import load_market_data
 from .feature_engineering import build_features
-from .healthcare_benchmark import run_healthcare_holdout_benchmark
+from .healthcare_benchmark import (
+    analyze_feature_selection,
+    build_date_blocked_splits,
+    chronological_holdout_split,
+    evaluate_saved_model_on_time_split,
+    load_preserved_healthcare_frame,
+    run_healthcare_random_holdout_benchmark,
+    run_healthcare_time_split_benchmark,
+    run_healthcare_tuning_pipeline,
+)
 from .models import build_model_suite
 from .backtesting import run_backtest
 
 __all__ = [
+    "analyze_feature_selection",
+    "build_date_blocked_splits",
     "build_features",
     "build_model_suite",
+    "chronological_holdout_split",
+    "evaluate_saved_model_on_time_split",
     "load_market_data",
-    "run_healthcare_holdout_benchmark",
+    "load_preserved_healthcare_frame",
+    "run_healthcare_random_holdout_benchmark",
+    "run_healthcare_time_split_benchmark",
+    "run_healthcare_tuning_pipeline",
     "run_backtest",
 ]

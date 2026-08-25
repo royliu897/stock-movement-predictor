@@ -1,8 +1,8 @@
 Healthcare direction benchmark
 rows=344698
 feature_count=13
-positive_rate=0.3217
+positive_rate=0.3166
 test_size=0.20
 random_state=42
-dummy_most_frequent: accuracy=0.6780
+dummy_most_frequent: accuracy=0.6823
 random_forest_100: accuracy=0.8710

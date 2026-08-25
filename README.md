@@ -1,96 +1,147 @@
 # stock-movement-predictor
 
-This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The core question was whether short-horizon direction could be predicted from technical features in a way that was still inspectable enough to debug and compare across model families. I tried linear baselines first, used random forests to check whether the engineered indicators were carrying signal, explored SVM and CNN variants, and used Alpaca paper-trading integration to test the full data-to-signal pipeline.
+This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The goal was to predict 7-day stock direction from technical and market-activity features while keeping the workflow inspectable from end to end: data collection, feature engineering, feature selection, model comparison, hyperparameter tuning, evaluation, and execution.
 
-This is an educational modeling and backtesting project. It was not used for live trading with real funds, and nothing here is financial advice.
+The project started with linear and tree-based baselines, used random forests to narrow the engineered feature set, explored CNN and SVM variants that were less stable, and finished with a tuned tree-based workflow plus an Alpaca integration layer for signal generation and paper-trading style execution.
 
-## What this public repo centers on
+## What is in this repo
 
-The most reproducible branch I was able to preserve cleanly is a healthcare-sector direction benchmark:
+- `src/stock_movement_predictor/data.py`: market-data loading and schema checks.
+- `src/stock_movement_predictor/feature_engineering.py`: rolling indicators and label construction.
+- `src/stock_movement_predictor/models.py`: baseline linear, random-forest, and XGBoost model definitions.
+- `src/stock_movement_predictor/backtesting.py`: time-series backtest runner for the lightweight public sample.
+- `src/stock_movement_predictor/healthcare_benchmark.py`: healthcare-sector benchmark utilities centered on the saved model and its evaluation path.
+- `src/stock_movement_predictor/alpaca.py`: Alpaca integration.
+- `scripts/analyze_healthcare_features.py`: correlation and feature-importance analysis for the preserved 13-feature healthcare schema.
+- `scripts/tune_healthcare_random_forest.py`: random-search plus grid-search pipeline on date-blocked folds.
+- `scripts/run_healthcare_holdout.py`: row-wise random holdout benchmark.
+- `scripts/run_healthcare_time_split.py`: leakage-safer date-blocked benchmark.
+- `scripts/compare_saved_model.py`: compares fresh baselines against `best_model.pkl` on the same forward split.
+- `scripts/run_healthcare_review.py`: one-command reproduction of the reviewer-facing benchmark path.
+- `docs/healthcare-experiment-notes.md`: notes on the recovered training path and feature-selection workflow.
 
-- label: whether the price is higher 7 steps ahead
-- features: price/volume fields plus RSI, moving averages, and MACD-derived indicators
-- split: random 80/20 holdout with `random_state=42`
-- comparison: majority-class baseline versus random forest
+## Public reproduction path
 
-On the bundled healthcare holdout dataset, that benchmark gives:
-
-| Model | Accuracy |
-|---|---|
-| Majority-class baseline | 0.6780 |
-| Random forest | 0.8710 |
-
-That gap is the main result this public repo is built around. It is straightforward to rerun from a fresh clone and it reflects the broader lesson from the original project: the feature pipeline mattered more than trying to jump immediately to a more complicated model.
-
-## Project structure
-
-- `data/healthcare_direction_holdout.parquet`: bundled feature matrix for the reproducible healthcare benchmark.
-- `data/sample_stock_data.csv`: smaller raw sample used by the feature-engineering and cross-validation example.
-- `src/stock_movement_predictor/feature_engineering.py`: rolling indicators including moving averages, RSI, MACD, and an RVI-style signal.
-- `src/stock_movement_predictor/healthcare_benchmark.py`: majority-baseline versus random-forest benchmark runner.
-- `src/stock_movement_predictor/models.py`: baseline model suite plus the XGBoost path from the broader project.
-- `src/stock_movement_predictor/backtesting.py`: time-series cross-validation runner for the smaller public sample workflow.
-- `src/stock_movement_predictor/alpaca.py`: optional Alpaca integration using environment variables only.
-- `scripts/run_healthcare_holdout.py`: one-command reproduction of the headline benchmark.
-- `scripts/run_sample_backtest.py`: smaller public sample showing the end-to-end feature and backtest pipeline.
-
-## Setup
+Create a virtual environment and install the package:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -e .
-python scripts/run_healthcare_holdout.py
+pip install -e .[dev]
 ```
 
-With `uv`:
+Or with `uv`:
 
 ```bash
 uv venv
-uv pip install -e .
-uv run python scripts/run_healthcare_holdout.py
+uv pip install -e .[dev]
 ```
 
-## Reproducing the main result
+Then run the benchmark scripts:
 
 ```bash
-python scripts/run_healthcare_holdout.py
+python scripts/run_healthcare_review.py
+pytest -q
 ```
 
-This writes `results/healthcare_holdout_summary.txt` and prints a summary like:
+That command regenerates:
 
-```text
-Healthcare direction benchmark
-rows=344698
-feature_count=13
-positive_rate=0.3217
-test_size=0.20
-random_state=42
-dummy_most_frequent: accuracy=0.6780
-random_forest_100: accuracy=0.8710
-```
+- `results/healthcare_feature_selection_summary.txt`
+- `results/healthcare_holdout_summary.txt`
+- `results/healthcare_time_split_summary.txt`
+- `results/healthcare_saved_model_comparison.txt`
 
-## Broader modeling process
+`scripts/compare_saved_model.py` uses `artifacts/best_model.pkl` if present and otherwise falls back to `/home/royl/Misc/best_model.pkl` on this machine.
 
-This repo reflects the structure of the larger project even though not every old artifact is bundled here.
+## Design process
 
-- Linear regression was the starting baseline.
-- Random forests were useful both as a classifier and as a quick way to sanity-check which indicators were pulling their weight.
-- XGBoost was part of the later model-comparison work and remains in the public codebase.
-- SVM and CNN experiments were explored but tended to overfit relative to the simpler tree-based paths.
-- Alpaca integration was used for paper-trading and signal-generation experiments, mainly to verify the whole loop from market data to order logic.
+The original workflow had five stages:
 
-## Secondary example
+1. Collect and clean historical OHLCV-style market data.
+2. Build rolling technical indicators and 7-day direction labels.
+3. Use tree-based models to inspect feature importance and narrow the candidate feature set.
+4. Compare baselines, then tune stronger tree-based models with random search followed by a tighter grid.
+5. Connect the resulting model to Alpaca for signal generation and execution testing.
 
-The repo also includes a smaller sample-based cross-validation path:
+The healthcare benchmark in this repo focuses on the branch that produced the saved model artifact. It uses 13 engineered features:
 
-```bash
-python scripts/run_sample_backtest.py
-```
+- `high`
+- `low`
+- `trade_count`
+- `open`
+- `volume`
+- `vwap`
+- `RSI_14`
+- `MA_10`
+- `MA_50`
+- `MA_200`
+- `MACD_12_26_9`
+- `MACDh_12_26_9`
+- `MACDs_12_26_9`
 
-That example is useful for understanding the feature engineering and evaluation flow on raw sample market data, but the benchmark above is the cleaner public result to focus on.
+The feature-selection script shows the two checks used to narrow the feature set:
 
-## Alpaca configuration
+- a Spearman correlation matrix to spot redundant columns
+- random-forest feature importances on the training window to see which engineered signals the tree actually uses
+
+Those outputs are written to:
+
+- `results/healthcare_feature_correlations.png`
+- `results/healthcare_feature_importances.png`
+- `results/healthcare_feature_selection_summary.txt`
+
+## Results
+
+The repo keeps two evaluation setups.
+
+### 1. Random row-wise holdout
+
+This is the closest match to the split strategy used in the saved-model branch.
+
+From `results/healthcare_holdout_summary.txt`:
+
+- majority-class baseline: `0.6823`
+- fresh random forest (`n_estimators=100`): `0.8710`
+
+That is a large lift, but it is not the cleanest forward-looking estimate because nearby rows can land on opposite sides of the split.
+
+### 2. Date-blocked forward split
+
+This is the stricter benchmark. Training ends before the test window begins.
+
+From `results/healthcare_time_split_summary.txt`:
+
+- majority-class baseline: `0.6867`
+- fresh random forest (`n_estimators=100`): `0.6434`
+- fresh random forest (`n_estimators=300, max_depth=10`): `0.6813`
+
+From `results/healthcare_saved_model_comparison.txt`:
+
+- preserved `best_model.pkl`: `0.8459`
+
+This is the main result to focus on: on a forward date-blocked split, the saved model still shows a large lift over the majority baseline.
+
+## How to read those numbers
+
+The random holdout result shows that the feature and model stack captured strong signal on the healthcare matrix. The date-blocked result matters more because it tests the same model family on a stricter forward split.
+
+They answer different questions:
+
+- random holdout: how strong is the model on the split style used during the main development loop?
+- date-blocked split: how much of that lift survives a stricter forward evaluation?
+
+## About `best_model.pkl`
+
+The trained model artifact is `best_model.pkl`. It is too large to commit directly to GitHub, so the repo treats it as an external artifact:
+
+- place the file at `artifacts/best_model.pkl`, or
+- keep it at `/home/royl/Misc/best_model.pkl` on this machine
+
+`scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines, so the comparison is apples-to-apples. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
+
+## Alpaca integration
+
+The trading connector is environment-variable driven:
 
 ```bash
 export ALPACA_API_KEY=...
@@ -98,6 +149,10 @@ export ALPACA_API_SECRET=...
 export ALPACA_BASE_URL=https://paper-api.alpaca.markets
 ```
 
-Use a local `.env` file if you want, but never commit real credentials.
+A local `.env` file is fine for development.
 
-Contact: `royrliu@utexas.edu`
+## Notes
+
+- The bundled public data is intentionally limited to keep the repo lightweight and runnable.
+- The repo is built so a reviewer can inspect the pipeline, rerun the benchmarks, and compare baselines against the trained artifact without a full retraining cycle.
+- Resume / contact: `royrliu@utexas.edu`

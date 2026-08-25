@@ -1,0 +1,18 @@
+Feature selection analysis
+Preserved healthcare schema includes 13 engineered features.
+Correlation matrix and random-forest importances are computed on the training window only.
+
+Top importances:
+MACD_12_26_9: 0.104088
+MACDh_12_26_9: 0.103924
+MACDs_12_26_9: 0.095430
+RSI_14: 0.090763
+MA_200: 0.089751
+trade_count: 0.076263
+volume: 0.072404
+MA_50: 0.066772
+vwap: 0.061770
+MA_10: 0.060557
+high: 0.060063
+low: 0.059560
+open: 0.058657

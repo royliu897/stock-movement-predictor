@@ -6,13 +6,13 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from stock_movement_predictor.healthcare_benchmark import run_healthcare_holdout_benchmark
+from stock_movement_predictor.healthcare_benchmark import run_healthcare_random_holdout_benchmark
 
 
 def main() -> None:
     repo_root = REPO_ROOT
-    dataset_path = repo_root / "data" / "healthcare_direction_holdout.parquet"
-    results, metadata = run_healthcare_holdout_benchmark(dataset_path)
+    dataset_path = repo_root / "data" / "healthcare_market_data.parquet"
+    results, metadata = run_healthcare_random_holdout_benchmark(dataset_path)
 
     results_dir = repo_root / "results"
     results_dir.mkdir(exist_ok=True)
