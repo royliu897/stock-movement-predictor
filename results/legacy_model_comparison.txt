@@ -1,0 +1,11 @@
+Legacy classifier path
+healthcare_smallcap          classifier_accuracy=0.951485 predicted_positive_rate=0.297877 rows=137174
+healthcare_midcap            classifier_accuracy=0.949219 predicted_positive_rate=0.310957 rows=119965
+healthcare_largecap          classifier_accuracy=0.950395 predicted_positive_rate=0.325826 rows=84367
+healthcare_combined          classifier_accuracy=0.950420 predicted_positive_rate=0.309377 rows=341506
+tech_combined                classifier_accuracy=0.645539 predicted_positive_rate=0.243376 rows=251861
+
+Legacy regressor path
+healthcare_smallcap          directional_accuracy=0.506269 mae=0.648570 r2=0.997273 rows=137174
+healthcare_midcap            directional_accuracy=0.504606 mae=1.287415 r2=0.987609 rows=119965
+healthcare_largecap          directional_accuracy=0.504984 mae=4.431562 r2=0.995718 rows=84367
