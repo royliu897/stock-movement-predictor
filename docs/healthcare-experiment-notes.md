@@ -4,11 +4,11 @@ This file records what survived from the original local stock-modeling project a
 
 ## Surviving artifact paths
 
-- `/home/royl/Misc/train_model.py`
-- `/home/royl/Misc/generate_recommendations.py`
-- `/home/royl/Misc/Untitled--1.ipynb`
-- `/home/royl/Misc/xgbooost.ipynb`
-- `/home/royl/Misc/best_model.pkl`
+- local `train_model.py`
+- local `generate_recommendations.py`
+- local `Untitled--1.ipynb`
+- local `xgbooost.ipynb`
+- local `best_model.pkl`
 
 ## What `best_model.pkl` is tied to
 
@@ -49,7 +49,18 @@ For that reason the public repo also includes a stricter date-blocked benchmark:
 - all test rows come from later dates
 - the preserved saved model is evaluated on that same forward split
 
-That gives the more defensible number to foreground in the repo.
+That gives the more defensible retraining path to foreground in the repo, even though the preserved saved artifact remains the strongest surviving single model result.
+
+## Why the artifact result is presented separately
+
+The saved artifact scores much higher on the date-blocked comparison than the fresh blocked retrains in the public pipeline. At minimum, that means the current public retraining path is not a full reproduction of the original saved-model branch.
+
+The two most plausible explanations are:
+
+- the original artifact was trained under a different split regime, most likely the random row-wise split visible in the surviving script
+- the original branch and the public retrain path differ in feature timing, preprocessing, or both
+
+For that reason the repo treats `best_model.pkl` as a preserved benchmark artifact and keeps it separate from the fresh blocked retrains.
 
 ## Feature-selection reconstruction
 

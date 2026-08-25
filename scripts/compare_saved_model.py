@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -13,14 +14,11 @@ from stock_movement_predictor.healthcare_benchmark import (
 )
 
 
-def default_model_path() -> Path | None:
-    local_candidate = Path("/home/royl/Misc/best_model.pkl")
-    repo_candidate = REPO_ROOT / "artifacts" / "best_model.pkl"
-    if repo_candidate.exists():
-        return repo_candidate
-    if local_candidate.exists():
-        return local_candidate
-    return None
+def default_model_path() -> Path:
+    configured = os.environ.get("MODEL_PATH")
+    if configured:
+        return Path(configured)
+    return REPO_ROOT / "artifacts" / "best_model.pkl"
 
 
 def main() -> None:
@@ -47,12 +45,13 @@ def main() -> None:
         for result in results:
             handle.write(f"{result.model_name}: accuracy={result.accuracy:.4f}\n")
 
-        if args.model_path is not None and args.model_path.exists():
+        if args.model_path.exists():
             saved_result, saved_metadata = evaluate_saved_model_on_time_split(dataset_path, args.model_path)
             handle.write(f"{saved_result.model_name}: accuracy={saved_result.accuracy:.4f}\n")
             handle.write(f"saved_model_positive_rate={saved_metadata['positive_rate']:.4f}\n")
         else:
-            handle.write("best_model.pkl: missing\n")
+            handle.write(f"best_model.pkl: missing ({args.model_path})\n")
+            handle.write("Set MODEL_PATH or place the artifact at artifacts/best_model.pkl.\n")
 
     print(summary_path.read_text(encoding="utf-8"))
 

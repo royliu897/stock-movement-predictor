@@ -2,7 +2,7 @@
 
 This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The goal was to predict 7-day stock direction from technical and market-activity features while keeping the workflow inspectable from end to end: data collection, feature engineering, feature selection, model comparison, hyperparameter tuning, evaluation, and execution.
 
-The project started with linear and tree-based baselines, used random forests to narrow the engineered feature set, explored CNN and SVM variants that were less stable, and finished with a tuned tree-based workflow plus an Alpaca integration layer for signal generation and paper-trading style execution.
+The project started with linear and tree-based baselines, used random forests to narrow the engineered feature set, explored CNN and SVM variants that were less stable, and finished with a tuned tree-based workflow plus an Alpaca integration layer for signal generation and paper-trading style execution rather than live deployment.
 
 ## What is in this repo
 
@@ -51,7 +51,7 @@ That command regenerates:
 - `results/healthcare_time_split_summary.txt`
 - `results/healthcare_saved_model_comparison.txt`
 
-`scripts/compare_saved_model.py` uses `artifacts/best_model.pkl` if present and otherwise falls back to `/home/royl/Misc/best_model.pkl` on this machine.
+`scripts/compare_saved_model.py` looks for `artifacts/best_model.pkl` by default. To point at an external copy, set `MODEL_PATH=/path/to/best_model.pkl`.
 
 ## Design process
 
@@ -63,21 +63,7 @@ The original workflow had five stages:
 4. Compare baselines, then tune stronger tree-based models with random search followed by a tighter grid.
 5. Connect the resulting model to Alpaca for signal generation and execution testing.
 
-The healthcare benchmark in this repo focuses on the branch that produced the saved model artifact. It uses 13 engineered features:
-
-- `high`
-- `low`
-- `trade_count`
-- `open`
-- `volume`
-- `vwap`
-- `RSI_14`
-- `MA_10`
-- `MA_50`
-- `MA_200`
-- `MACD_12_26_9`
-- `MACDh_12_26_9`
-- `MACDs_12_26_9`
+The healthcare benchmark in this repo focuses on the branch that produced the saved model artifact. It uses 13 engineered features: `high`, `low`, `trade_count`, `open`, `volume`, `vwap`, `RSI_14`, `MA_10`, `MA_50`, `MA_200`, `MACD_12_26_9`, `MACDh_12_26_9`, and `MACDs_12_26_9`.
 
 The feature-selection script shows the two checks used to narrow the feature set:
 
@@ -119,25 +105,36 @@ From `results/healthcare_saved_model_comparison.txt`:
 
 - preserved `best_model.pkl`: `0.8459`
 
-This is the main result to focus on: on a forward date-blocked split, the saved model still shows a large lift over the majority baseline.
+That gap is real, but it also needs context: the saved artifact strongly outperforms both fresh retrains on the stricter split, while the public tuning path does not reproduce that jump. The most likely reason is that the original saved-model branch and the current date-blocked retraining path are not identical, either in split mechanics, feature timing, or both. Because of that, this repo presents the saved-artifact result and the fresh blocked retrains side by side instead of pretending they are interchangeable.
 
 ## How to read those numbers
 
-The random holdout result shows that the feature and model stack captured strong signal on the healthcare matrix. The date-blocked result matters more because it tests the same model family on a stricter forward split.
+The random holdout shows that the feature stack captures strong signal on the healthcare matrix. The date-blocked split tests how much of that survives a stricter forward evaluation. The current public retraining path is closer to the second question than the first, which is why the repo keeps both results visible.
 
-They answer different questions:
+## Why the saved artifact and fresh retrains diverge
 
-- random holdout: how strong is the model on the split style used during the main development loop?
-- date-blocked split: how much of that lift survives a stricter forward evaluation?
+On the stricter date-blocked split, the fresh random forests land at `0.6434` and `0.6813`, while the preserved artifact scores `0.8459`. That is too large a gap to ignore.
+
+What is established:
+
+- the saved artifact is real and evaluates to `0.8459` on the committed date-blocked comparison script
+- the fresh blocked retrains in this repo do not reproduce that score
+- the original surviving training script for the artifact used a random row-wise split, not a date-blocked one
+
+What that means for this public repo:
+
+- the saved model result should be read as a preserved artifact benchmark, not as a fully reproduced blocked-split retrain
+- the blocked retrain scripts are here to show the feature-selection and tuning pipeline in a leakage-safer setup
+- the difference between those two paths is itself part of the engineering story, because it shows why split design and feature timing matter
 
 ## About `best_model.pkl`
 
 The trained model artifact is `best_model.pkl`. It is too large to commit directly to GitHub, so the repo treats it as an external artifact:
 
 - place the file at `artifacts/best_model.pkl`, or
-- keep it at `/home/royl/Misc/best_model.pkl` on this machine
+- set `MODEL_PATH` to its location before running `scripts/compare_saved_model.py`
 
-`scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines, so the comparison is apples-to-apples. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
+`scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
 
 ## Alpaca integration
 
