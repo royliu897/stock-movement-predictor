@@ -1,26 +1,38 @@
 # stock-movement-predictor
 
-This repository packages my 2024-2025 stock modeling project into a cleaner public structure. The project started with a simple question: could short-term price movement be modeled in a way that was still interpretable enough to debug? That led to a workflow built around data collection, technical-indicator feature engineering, backtesting, and comparing several model families before settling on XGBoost as the final direction.
+This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The core question was whether short-horizon direction could be predicted from technical features in a way that was still inspectable enough to debug and compare across model families. I tried linear baselines first, used random forests to check whether the engineered indicators were carrying signal, explored SVM and CNN variants, and used Alpaca paper-trading integration to test the full data-to-signal pipeline.
 
-The progression was roughly:
+This is an educational modeling and backtesting project. It was not used for live trading with real funds, and nothing here is financial advice.
 
-- start with linear regression as a baseline,
-- use random forests to sanity-check the feature set,
-- test more complex models like SVMs and CNN-style experiments,
-- move to XGBoost once the tree-based pipeline was working well,
-- connect the prediction pipeline to Alpaca for paper-trading and live data plumbing.
+## What this public repo centers on
 
-This is an educational backtesting project, not financial advice, and it was not used for live trading with real funds.
+The most reproducible branch I was able to preserve cleanly is a healthcare-sector direction benchmark:
+
+- label: whether the price is higher 7 steps ahead
+- features: price/volume fields plus RSI, moving averages, and MACD-derived indicators
+- split: random 80/20 holdout with `random_state=42`
+- comparison: majority-class baseline versus random forest
+
+On the bundled healthcare holdout dataset, that benchmark gives:
+
+| Model | Accuracy |
+|---|---|
+| Majority-class baseline | 0.6780 |
+| Random forest | 0.8710 |
+
+That gap is the main result this public repo is built around. It is straightforward to rerun from a fresh clone and it reflects the broader lesson from the original project: the feature pipeline mattered more than trying to jump immediately to a more complicated model.
 
 ## Project structure
 
-- `src/stock_movement_predictor/data.py`: CSV/parquet loading and schema checks.
-- `src/stock_movement_predictor/feature_engineering.py`: rolling indicators such as moving averages, RSI, MACD, and an RVI-style signal.
-- `src/stock_movement_predictor/models.py`: linear regression and random forest baselines plus the final XGBoost path.
-- `src/stock_movement_predictor/backtesting.py`: time-series cross-validation backtest runner.
+- `data/healthcare_direction_holdout.parquet`: bundled feature matrix for the reproducible healthcare benchmark.
+- `data/sample_stock_data.csv`: smaller raw sample used by the feature-engineering and cross-validation example.
+- `src/stock_movement_predictor/feature_engineering.py`: rolling indicators including moving averages, RSI, MACD, and an RVI-style signal.
+- `src/stock_movement_predictor/healthcare_benchmark.py`: majority-baseline versus random-forest benchmark runner.
+- `src/stock_movement_predictor/models.py`: baseline model suite plus the XGBoost path from the broader project.
+- `src/stock_movement_predictor/backtesting.py`: time-series cross-validation runner for the smaller public sample workflow.
 - `src/stock_movement_predictor/alpaca.py`: optional Alpaca integration using environment variables only.
-- `scripts/run_sample_backtest.py`: runnable public example on bundled sample data.
-- `scripts/legacy_model_comparison.py`: comparison script for older saved model artifacts against the surviving local parquet datasets.
+- `scripts/run_healthcare_holdout.py`: one-command reproduction of the headline benchmark.
+- `scripts/run_sample_backtest.py`: smaller public sample showing the end-to-end feature and backtest pipeline.
 
 ## Setup
 
@@ -28,95 +40,57 @@ This is an educational backtesting project, not financial advice, and it was not
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e .
-python scripts/run_sample_backtest.py
+python scripts/run_healthcare_holdout.py
 ```
 
-If you prefer `uv`:
+With `uv`:
 
 ```bash
 uv venv
 uv pip install -e .
-uv run python scripts/run_sample_backtest.py
+uv run python scripts/run_healthcare_holdout.py
 ```
 
-## Experimental workflow
+## Reproducing the main result
 
-### 1. Data collection and preprocessing
+```bash
+python scripts/run_healthcare_holdout.py
+```
 
-The original project used historical price bars collected through Alpaca plus larger locally stored CSV/parquet tables. From those bars, I built a technical-feature pipeline around:
+This writes `results/healthcare_holdout_summary.txt` and prints a summary like:
 
-- price and volume features,
-- rolling moving averages,
-- RSI,
-- MACD and related components,
-- simple volatility and momentum signals.
+```text
+Healthcare direction benchmark
+rows=344698
+feature_count=13
+positive_rate=0.3217
+test_size=0.20
+random_state=42
+dummy_most_frequent: accuracy=0.6780
+random_forest_100: accuracy=0.8710
+```
 
-That feature pipeline ended up mattering more than trying increasingly exotic model classes.
+## Broader modeling process
 
-### 2. Model comparison
+This repo reflects the structure of the larger project even though not every old artifact is bundled here.
 
-I tried several model families over the course of the project:
+- Linear regression was the starting baseline.
+- Random forests were useful both as a classifier and as a quick way to sanity-check which indicators were pulling their weight.
+- XGBoost was part of the later model-comparison work and remains in the public codebase.
+- SVM and CNN experiments were explored but tended to overfit relative to the simpler tree-based paths.
+- Alpaca integration was used for paper-trading and signal-generation experiments, mainly to verify the whole loop from market data to order logic.
 
-- linear regression as a baseline,
-- random forests for feature sanity checks and interpretability,
-- SVM and CNN-style experiments,
-- XGBoost as the final model family.
+## Secondary example
 
-The main lesson was that the more complex models were not automatically better. In practice, SVM and CNN variants tended to overfit more easily on the data I had, while the tree-based pipeline was easier to tune and reason about.
-
-### 3. Feature selection and final direction
-
-Random forests were useful earlier in the project because they gave a relatively readable way to think about feature importance and whether the hand-built indicator set was doing anything useful at all. Once that workflow was stable, XGBoost became the final direction because it kept the same general feature-engineering structure while giving better predictive performance.
-
-### 4. Execution and paper trading
-
-I also wired the project into Alpaca for paper-trading experiments. That part was less about claiming a production trading system and more about proving that the data, feature, model, and execution layers could be connected into one pipeline.
-
-## Replicated results
-
-What I was able to rerun from the surviving artifacts splits into two categories.
-
-### Publicly reproducible from this repo
-
-Running `python scripts/run_sample_backtest.py` on the bundled sample data reproduced these mean time-series cross-validation accuracies:
-
-- `linear_regression_baseline`: `0.5194`
-- `random_forest_baseline`: `0.5039`
-- `xgboost_final`: `0.5013`
-
-Those numbers come from the small public sample included in this repository. A reviewer can reproduce them directly from a fresh clone.
-
-### Reproduced locally from older saved artifacts
-
-Using the surviving local parquet datasets and serialized models, I also reran the legacy comparison path in `scripts/legacy_model_comparison.py`. That produced:
-
-- `best_model.pkl` on combined healthcare parquet tables: `0.950420` classifier accuracy
-- `best_model.pkl` on combined tech parquet tables: `0.645539` classifier accuracy
-- legacy cap-bucket regressors: roughly `0.505` directional accuracy despite high price-level `R^2`
-
-Those results are genuine reruns, but they are not currently reproducible from a clean public clone because the larger parquet datasets and saved model pickle files are not bundled in this repository.
-
-## What a reviewer can run
-
-A reviewer can reproduce the public path end to end:
+The repo also includes a smaller sample-based cross-validation path:
 
 ```bash
 python scripts/run_sample_backtest.py
 ```
 
-That will:
-
-- load the bundled sample dataset,
-- rebuild features,
-- run the baseline and XGBoost models with time-series cross-validation,
-- regenerate `results/sample_backtest_summary.txt`,
-- regenerate `results/sample_backtest_accuracy.png`.
-
-A reviewer cannot rerun the larger legacy artifact comparison without access to the original external parquet datasets and saved model files.
+That example is useful for understanding the feature engineering and evaluation flow on raw sample market data, but the benchmark above is the cleaner public result to focus on.
 
 ## Alpaca configuration
-
-Use environment variables rather than hardcoded credentials:
 
 ```bash
 export ALPACA_API_KEY=...
@@ -124,12 +98,6 @@ export ALPACA_API_SECRET=...
 export ALPACA_BASE_URL=https://paper-api.alpaca.markets
 ```
 
-You can place these in a local `.env` file for convenience, but real credentials should never be committed.
-
-## Notes
-
-- The public repo reflects the actual arc of the project: compare several models, use random forests to understand the feature set, then move to XGBoost for the final direction.
-- The bundled sample data is intentionally small so the repo stays lightweight and runnable.
-- Some larger historical datasets and older model artifacts stayed local and are therefore documented rather than shipped.
+Use a local `.env` file if you want, but never commit real credentials.
 
 Contact: `royrliu@utexas.edu`

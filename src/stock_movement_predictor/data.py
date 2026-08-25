@@ -38,3 +38,22 @@ def load_feature_matrix(features_path: str | Path, labels_path: str | Path, labe
         raise ValueError(f"Expected label column {label_column!r} in {labels_path}")
     return features, labels[label_column]
 
+
+def load_labeled_matrix(path: str | Path, label_column: str) -> tuple[pd.DataFrame, pd.Series]:
+    source = Path(path)
+    if not source.exists():
+        raise FileNotFoundError(f"Could not find labeled data at {source}")
+
+    if source.suffix == ".csv":
+        frame = pd.read_csv(source)
+    elif source.suffix == ".parquet":
+        frame = pd.read_parquet(source)
+    else:
+        raise ValueError(f"Unsupported file type: {source.suffix}")
+
+    if label_column not in frame.columns:
+        raise ValueError(f"Expected label column {label_column!r} in {path}")
+
+    labels = frame[label_column].copy()
+    features = frame.drop(columns=[label_column])
+    return features, labels
