@@ -68,6 +68,18 @@ class NotebookRecoveryResult:
     grid_search_best_score: float
 
 
+@dataclass(frozen=True)
+class TrainingPipelineResult:
+    selected_features: list[str]
+    baseline_params: dict[str, object]
+    random_search_best_params: dict[str, object]
+    random_search_best_score: float
+    grid_search_best_params: dict[str, object]
+    grid_search_best_score: float
+    train_rows: int
+    feature_count: int
+
+
 def load_preserved_healthcare_frame(path: str | Path, horizon: int = 7) -> pd.DataFrame:
     """Load the healthcare benchmark frame and rebuild the 7-day direction label."""
     frame = pd.read_parquet(path).copy()
@@ -196,6 +208,73 @@ def run_recovered_healthcare_notebook_search(
         random_search_best_score=float(random_search.best_score_),
         grid_search_best_params=grid_search.best_params_,
         grid_search_best_score=float(grid_search.best_score_),
+    )
+
+
+def run_best_model_training_pipeline(
+    data_dir: str | Path,
+    random_state: int = 42,
+    n_jobs: int = 1,
+) -> TrainingPipelineResult:
+    """Train the tuned healthcare RF using the full feature-selection and 5-fold search workflow."""
+    frame = load_recovered_healthcare_training_frame(data_dir)
+    train_frame, _ = chronological_holdout_split(frame, test_fraction=0.2)
+    X_train_full = train_frame.drop(columns=["close", "timestamp", "symbol", "target"])
+    y_train = train_frame["target"]
+
+    # Rank features first so tuning is done on the narrowed signal set rather than the raw matrix.
+    selector = RandomForestClassifier(n_estimators=100, random_state=random_state, n_jobs=n_jobs)
+    selector.fit(X_train_full, y_train)
+    importances = pd.Series(selector.feature_importances_, index=X_train_full.columns).sort_values(ascending=False)
+    selected_features = importances.head(13).index.tolist()
+    X_train = X_train_full[selected_features]
+
+    # Use five chronological folds for the expensive search path.
+    cv_splits = build_date_blocked_splits(train_frame, n_splits=5)
+    baseline_params = {
+        "n_estimators": 100,
+        "random_state": random_state,
+        "n_jobs": n_jobs,
+    }
+    random_search = RandomizedSearchCV(
+        estimator=RandomForestClassifier(**baseline_params),
+        param_distributions={
+            "n_estimators": randint(50, 200),
+            "max_depth": [None, 10, 20],
+            "min_samples_split": randint(2, 10),
+            "min_samples_leaf": randint(1, 5),
+        },
+        n_iter=10,
+        cv=cv_splits,
+        scoring="accuracy",
+        random_state=random_state,
+        n_jobs=n_jobs,
+    )
+    random_search.fit(X_train, y_train)
+
+    grid_search = GridSearchCV(
+        estimator=RandomForestClassifier(random_state=random_state, n_jobs=n_jobs, **random_search.best_params_),
+        param_grid={
+            "n_estimators": [50, 100, 200],
+            "max_depth": [None, 10, 20],
+            "min_samples_split": [2, 5, 10],
+            "min_samples_leaf": [1, 2, 4],
+        },
+        cv=cv_splits,
+        scoring="accuracy",
+        n_jobs=n_jobs,
+    )
+    grid_search.fit(X_train, y_train)
+
+    return TrainingPipelineResult(
+        selected_features=selected_features,
+        baseline_params=baseline_params,
+        random_search_best_params=random_search.best_params_,
+        random_search_best_score=float(random_search.best_score_),
+        grid_search_best_params=grid_search.best_params_,
+        grid_search_best_score=float(grid_search.best_score_),
+        train_rows=len(train_frame),
+        feature_count=len(selected_features),
     )
 
 

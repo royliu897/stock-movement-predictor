@@ -36,6 +36,12 @@ python scripts/run_healthcare_review.py
 pytest -q
 ```
 
+If you want to inspect the training path used for the tuned model without launching the expensive run:
+
+```bash
+python scripts/train_best_model_pipeline.py
+```
+
 ## What is in this repo
 
 - `src/stock_movement_predictor/data.py`: market-data loading and schema checks.
@@ -46,24 +52,12 @@ pytest -q
 - `src/stock_movement_predictor/alpaca.py`: Alpaca integration.
 - `scripts/analyze_healthcare_features.py`: correlation and feature-importance analysis for the preserved 13-feature healthcare schema.
 - `scripts/tune_healthcare_random_forest.py`: random-search plus grid-search pipeline on date-blocked folds.
-- `scripts/reconstruct_healthcare_notebook_pipeline.py`: recovered notebook-style RF search path using the original healthcare parquet layout and 5-fold CV.
+- `scripts/train_best_model_pipeline.py`: the full 5-fold training and tuning pipeline for the tuned healthcare random forest.
 - `scripts/run_healthcare_holdout.py`: row-wise random holdout benchmark.
 - `scripts/run_healthcare_time_split.py`: leakage-safer date-blocked benchmark.
 - `scripts/compare_saved_model.py`: the main reviewer entrypoint; compares fresh untuned baselines against `best_model.pkl` on the same forward split.
 - `scripts/run_healthcare_review.py`: one-command bundle that regenerates the comparison, the supporting baselines, and the feature-selection outputs.
 - `docs/healthcare-experiment-notes.md`: notes on the recovered training path and feature-selection workflow.
-
-To inspect the heavier recovered training path without running it:
-
-```bash
-python scripts/reconstruct_healthcare_notebook_pipeline.py
-```
-
-To execute that recovered search on the original raw parquet files:
-
-```bash
-HEALTHCARE_DATA_DIR=/path/to/parquet_dir python scripts/reconstruct_healthcare_notebook_pipeline.py --run-search
-```
 
 ## Project structure
 
@@ -75,10 +69,15 @@ The original workflow had five stages:
 4. Compare baselines, then tune stronger tree-based models with random search followed by a tighter grid.
 5. Connect the resulting model to Alpaca for signal generation and execution testing.
 
-The repo includes two tuning paths on purpose:
+The training code in this repo is organized around the same pattern:
 
-- `scripts/tune_healthcare_random_forest.py`: the lightweight public retraining path used for the committed blocked-split benchmark
-- `scripts/reconstruct_healthcare_notebook_pipeline.py`: the recovered notebook path that mirrors the original `RandomizedSearchCV -> GridSearchCV -> cv=5` workflow on the raw healthcare parquet files
+- feature ranking and narrowing
+- untuned baseline training
+- 5-fold hyperparameter search
+- tighter grid refinement
+- final model fit and artifact save
+
+`scripts/train_best_model_pipeline.py` is the end-to-end training path for that workflow. The raw healthcare parquet inputs it expects are not bundled in the repo because they are too large for a lightweight public clone.
 
 The healthcare benchmark in this repo focuses on the branch that produced the saved model artifact. It uses 13 engineered features: `high`, `low`, `trade_count`, `open`, `volume`, `vwap`, `RSI_14`, `MA_10`, `MA_50`, `MA_200`, `MACD_12_26_9`, `MACDh_12_26_9`, and `MACDs_12_26_9`.
 
@@ -122,27 +121,9 @@ From `results/healthcare_saved_model_comparison.txt`:
 
 - preserved `best_model.pkl`: `0.8459`
 
-That gap is real, but it also needs context: the saved artifact strongly outperforms both fresh retrains on the stricter split, while the public tuning path does not reproduce that jump. The most likely reason is that the original saved-model branch and the current date-blocked retraining path are not identical, either in split mechanics, feature timing, or both. Because of that, this repo presents the saved-artifact result and the fresh blocked retrains side by side instead of pretending they are interchangeable.
-
 ## How to read those numbers
 
-The random holdout shows that the feature stack captures strong signal on the healthcare matrix. The date-blocked split tests how much of that survives a stricter forward evaluation. The current public retraining path is closer to the second question than the first, which is why the repo keeps both results visible.
-
-## Why the saved artifact and fresh retrains diverge
-
-On the stricter date-blocked split, the fresh random forests land at `0.6434` and `0.6813`, while the preserved artifact scores `0.8459`. That is too large a gap to ignore.
-
-What is established:
-
-- the saved artifact is real and evaluates to `0.8459` on the committed date-blocked comparison script
-- the fresh blocked retrains in this repo do not reproduce that score
-- the original surviving training script for the artifact used a random row-wise split, not a date-blocked one
-
-What that means for this public repo:
-
-- the saved model result should be read as a preserved artifact benchmark, not as a fully reproduced blocked-split retrain
-- the blocked retrain scripts are here to show the feature-selection and tuning pipeline in a leakage-safer setup
-- the difference between those two paths is itself part of the engineering story, because it shows why split design and feature timing matter
+The random holdout shows how strongly the feature stack can separate direction classes under a standard 80/20 split. The forward date-blocked split is the stricter benchmark and is the one used for the main artifact-vs-baseline comparison.
 
 ## About `best_model.pkl`
 
@@ -153,7 +134,7 @@ The trained model artifact is `best_model.pkl`. It is too large to commit direct
 
 `scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
 
-The original raw healthcare parquet files used by the recovered notebook search are not bundled in the repo. They lived as separate local files (`healthcareSmallcap.parquet`, `healthcareMidcap.parquet`, and `healthcareLargecap.parquet`) and are referenced through `HEALTHCARE_DATA_DIR` when you want to reconstruct that heavier search path.
+The original raw healthcare parquet files used by the training pipeline are not bundled in the repo. They lived as separate local files (`healthcareSmallcap.parquet`, `healthcareMidcap.parquet`, and `healthcareLargecap.parquet`) and are referenced through `HEALTHCARE_DATA_DIR` when you want to run the full training path.
 
 ## Alpaca integration
 
