@@ -14,6 +14,7 @@ The project started with linear and tree-based baselines, used random forests to
 - `src/stock_movement_predictor/alpaca.py`: Alpaca integration.
 - `scripts/analyze_healthcare_features.py`: correlation and feature-importance analysis for the preserved 13-feature healthcare schema.
 - `scripts/tune_healthcare_random_forest.py`: random-search plus grid-search pipeline on date-blocked folds.
+- `scripts/reconstruct_healthcare_notebook_pipeline.py`: recovered notebook-style RF search path using the original healthcare parquet layout and 5-fold CV.
 - `scripts/run_healthcare_holdout.py`: row-wise random holdout benchmark.
 - `scripts/run_healthcare_time_split.py`: leakage-safer date-blocked benchmark.
 - `scripts/compare_saved_model.py`: compares fresh baselines against `best_model.pkl` on the same forward split.
@@ -53,6 +54,18 @@ That command regenerates:
 
 `scripts/compare_saved_model.py` looks for `artifacts/best_model.pkl` by default. To point at an external copy, set `MODEL_PATH=/path/to/best_model.pkl`.
 
+To inspect the heavier recovered training path without running it:
+
+```bash
+python scripts/reconstruct_healthcare_notebook_pipeline.py
+```
+
+To execute that recovered search on the original raw parquet files:
+
+```bash
+HEALTHCARE_DATA_DIR=/path/to/parquet_dir python scripts/reconstruct_healthcare_notebook_pipeline.py --run-search
+```
+
 ## Design process
 
 The original workflow had five stages:
@@ -62,6 +75,11 @@ The original workflow had five stages:
 3. Use tree-based models to inspect feature importance and narrow the candidate feature set.
 4. Compare baselines, then tune stronger tree-based models with random search followed by a tighter grid.
 5. Connect the resulting model to Alpaca for signal generation and execution testing.
+
+The repo now includes two tuning paths on purpose:
+
+- `scripts/tune_healthcare_random_forest.py`: the lightweight public retraining path used for the committed blocked-split benchmark
+- `scripts/reconstruct_healthcare_notebook_pipeline.py`: the recovered notebook path that mirrors the original `RandomizedSearchCV -> GridSearchCV -> cv=5` workflow on the raw healthcare parquet files
 
 The healthcare benchmark in this repo focuses on the branch that produced the saved model artifact. It uses 13 engineered features: `high`, `low`, `trade_count`, `open`, `volume`, `vwap`, `RSI_14`, `MA_10`, `MA_50`, `MA_200`, `MACD_12_26_9`, `MACDh_12_26_9`, and `MACDs_12_26_9`.
 
@@ -135,6 +153,8 @@ The trained model artifact is `best_model.pkl`. It is too large to commit direct
 - set `MODEL_PATH` to its location before running `scripts/compare_saved_model.py`
 
 `scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
+
+The original raw healthcare parquet files used by the recovered notebook search are not bundled in the repo. They lived as separate local files (`healthcareSmallcap.parquet`, `healthcareMidcap.parquet`, and `healthcareLargecap.parquet`) and are referenced through `HEALTHCARE_DATA_DIR` when you want to reconstruct that heavier search path.
 
 ## Alpaca integration
 

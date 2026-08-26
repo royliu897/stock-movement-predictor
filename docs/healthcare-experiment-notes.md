@@ -37,7 +37,18 @@ Two separate tuning paths still exist in notebook form:
 Those notebooks are not clean enough to publish directly as the public pipeline, but they are enough to justify the structure of the refactored scripts:
 
 - `scripts/tune_healthcare_random_forest.py`
+- `scripts/reconstruct_healthcare_notebook_pipeline.py`
 - `src/stock_movement_predictor/healthcare_benchmark.py`
+
+The recovered notebook script mirrors the surviving RF notebook more directly:
+
+- merged raw healthcare small/mid/large parquet files
+- target: `close[t+7] > close[t]`
+- random forest
+- `RandomizedSearchCV(..., n_iter=10, cv=5, scoring="accuracy")`
+- followed by `GridSearchCV(..., cv=5, scoring="accuracy")`
+
+That path is kept separate from the lightweight public benchmark because it is closer to the original long-running search loop and depends on raw local parquet files that are not bundled in the repo.
 
 ## Why the repo shows two evaluation setups
 

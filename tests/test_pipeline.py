@@ -7,6 +7,7 @@ from stock_movement_predictor.healthcare_benchmark import (
     build_date_blocked_splits,
     chronological_holdout_split,
     load_preserved_healthcare_frame,
+    recovered_healthcare_notebook_config,
 )
 from stock_movement_predictor.models import build_model_suite
 
@@ -90,3 +91,19 @@ def test_feature_analysis_summary_lists_preserved_schema():
     assert "Preserved healthcare schema includes 13 engineered features." in summary
     assert "MACD_12_26_9: 0.104088" in summary
     assert "open: 0.058657" in summary
+
+
+def test_recovered_notebook_config_matches_surviving_rf_search():
+    config = recovered_healthcare_notebook_config()
+
+    assert config.dataset_names == (
+        "healthcareSmallcap.parquet",
+        "healthcareMidcap.parquet",
+        "healthcareLargecap.parquet",
+    )
+    assert config.horizon == 7
+    assert config.random_search_n_iter == 10
+    assert config.random_search_cv == 5
+    assert config.grid_search_cv == 5
+    assert config.grid_search_grid["n_estimators"] == [50, 100, 200]
+    assert config.grid_search_grid["max_depth"] == [None, 10, 20]

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
+from scipy.stats import randint
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
@@ -43,6 +44,28 @@ class TuningResult:
     grid_search_best_params: dict[str, object]
     grid_search_best_score: float
     final_test_accuracy: float
+
+
+@dataclass(frozen=True)
+class NotebookRecoveryConfig:
+    dataset_names: tuple[str, str, str]
+    horizon: int
+    random_search_n_iter: int
+    random_search_cv: int
+    grid_search_cv: int
+    scoring: str
+    random_search_distributions: dict[str, object]
+    grid_search_grid: dict[str, list[object]]
+
+
+@dataclass(frozen=True)
+class NotebookRecoveryResult:
+    row_count: int
+    feature_count: int
+    random_search_best_params: dict[str, object]
+    random_search_best_score: float
+    grid_search_best_params: dict[str, object]
+    grid_search_best_score: float
 
 
 def load_preserved_healthcare_frame(path: str | Path, horizon: int = 7) -> pd.DataFrame:
@@ -94,6 +117,86 @@ def build_date_blocked_splits(frame: pd.DataFrame, n_splits: int = 3) -> list[tu
 def _split_xy(frame: pd.DataFrame, feature_columns: list[str] | None = None) -> tuple[pd.DataFrame, pd.Series]:
     columns = feature_columns or PRESERVED_FEATURE_COLUMNS
     return frame[columns], frame["target"]
+
+
+def recovered_healthcare_notebook_config() -> NotebookRecoveryConfig:
+    """Return the exact RF search settings recovered from Untitled--1.ipynb."""
+    return NotebookRecoveryConfig(
+        dataset_names=("healthcareSmallcap.parquet", "healthcareMidcap.parquet", "healthcareLargecap.parquet"),
+        horizon=7,
+        random_search_n_iter=10,
+        random_search_cv=5,
+        grid_search_cv=5,
+        scoring="accuracy",
+        random_search_distributions={
+            "n_estimators": randint(50, 200),
+            "max_depth": [None, 10, 20],
+            "min_samples_split": randint(2, 10),
+            "min_samples_leaf": randint(1, 5),
+        },
+        grid_search_grid={
+            "n_estimators": [50, 100, 200],
+            "max_depth": [None, 10, 20],
+            "min_samples_split": [2, 5, 10],
+            "min_samples_leaf": [1, 2, 4],
+        },
+    )
+
+
+def load_recovered_healthcare_training_frame(data_dir: str | Path) -> pd.DataFrame:
+    """Load the three raw healthcare parquet files used by the recovered notebook pipeline."""
+    data_root = Path(data_dir)
+    config = recovered_healthcare_notebook_config()
+    frames = [pd.read_parquet(data_root / dataset_name) for dataset_name in config.dataset_names]
+    merged = pd.concat(frames, ignore_index=True)
+    merged["timestamp"] = pd.to_datetime(merged["timestamp"], utc=True)
+    merged = merged.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+    merged["target"] = (merged.groupby("symbol")["close"].shift(-config.horizon) > merged["close"]).astype(int)
+    return merged.dropna(subset=["target"]).reset_index(drop=True)
+
+
+def run_recovered_healthcare_notebook_search(
+    data_dir: str | Path,
+    random_state: int = 42,
+    n_jobs: int = 1,
+) -> NotebookRecoveryResult:
+    """Recreate the RF search loop from Untitled--1.ipynb without changing its split logic."""
+    frame = load_recovered_healthcare_training_frame(data_dir)
+    X = frame.drop(columns=["close", "timestamp", "symbol", "target"])
+    y = frame["target"]
+    config = recovered_healthcare_notebook_config()
+
+    # This intentionally mirrors the notebook path: random search first, then a fixed grid on the full matrix.
+    base_model = RandomForestClassifier(random_state=random_state)
+    random_search = RandomizedSearchCV(
+        estimator=base_model,
+        param_distributions=config.random_search_distributions,
+        n_iter=config.random_search_n_iter,
+        cv=config.random_search_cv,
+        scoring=config.scoring,
+        random_state=random_state,
+        n_jobs=n_jobs,
+    )
+    random_search.fit(X, y)
+
+    tuned_model = RandomForestClassifier(random_state=random_state, **random_search.best_params_)
+    grid_search = GridSearchCV(
+        estimator=tuned_model,
+        param_grid=config.grid_search_grid,
+        cv=config.grid_search_cv,
+        scoring=config.scoring,
+        n_jobs=n_jobs,
+    )
+    grid_search.fit(X, y)
+
+    return NotebookRecoveryResult(
+        row_count=len(frame),
+        feature_count=X.shape[1],
+        random_search_best_params=random_search.best_params_,
+        random_search_best_score=float(random_search.best_score_),
+        grid_search_best_params=grid_search.best_params_,
+        grid_search_best_score=float(grid_search.best_score_),
+    )
 
 
 def run_healthcare_random_holdout_benchmark(
