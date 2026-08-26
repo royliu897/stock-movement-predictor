@@ -12,21 +12,22 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from stock_movement_predictor.healthcare_benchmark import run_best_model_training_pipeline
 
 
-def default_data_dir() -> Path:
+def configured_data_dir() -> Path:
     configured = os.environ.get("HEALTHCARE_DATA_DIR")
     if configured:
         return Path(configured)
-    return Path("/home/royl/Misc")
+    raise SystemExit("Set HEALTHCARE_DATA_DIR to the directory containing healthcareSmallcap.parquet, healthcareMidcap.parquet, and healthcareLargecap.parquet.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Display or run the full training pipeline used for the tuned healthcare random forest."
     )
-    parser.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Directory containing healthcareSmallcap/Midcap/Largecap parquet files")
+    parser.add_argument("--data-dir", type=Path, default=None, help="Directory containing healthcareSmallcap/Midcap/Largecap parquet files")
     parser.add_argument("--run-training", action="store_true", help="Execute the full feature-selection and 5-fold search workflow")
     parser.add_argument("--n-jobs", type=int, default=1, help="Job count for sklearn estimators and searches")
     args = parser.parse_args()
+    data_dir = args.data_dir or configured_data_dir()
 
     payload = {
         "datasets": [
@@ -34,7 +35,7 @@ def main() -> None:
             "healthcareMidcap.parquet",
             "healthcareLargecap.parquet",
         ],
-        "data_dir": str(args.data_dir),
+        "data_dir": str(data_dir),
         "target_definition": "close[t+7] > close[t]",
         "outer_split": "chronological 80/20 holdout",
         "feature_selection": "RandomForest feature importance, top 13 features",
@@ -74,7 +75,7 @@ def main() -> None:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
 
-    result = run_best_model_training_pipeline(args.data_dir, n_jobs=args.n_jobs)
+    result = run_best_model_training_pipeline(data_dir, n_jobs=args.n_jobs)
     payload["selected_features"] = result.selected_features
     payload["train_rows"] = result.train_rows
     payload["feature_count"] = result.feature_count

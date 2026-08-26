@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 import joblib
 import numpy as np
@@ -57,25 +58,31 @@ def evaluate_regressor(model, dataset_name: str, frame: pd.DataFrame) -> str:
 
 
 def main() -> None:
-    misc = Path("/home/royl/Misc")
+    configured_data = os.environ.get("LEGACY_DATA_DIR")
+    configured_models = os.environ.get("LEGACY_MODEL_DIR")
+    if not configured_data or not configured_models:
+        raise SystemExit("Set LEGACY_DATA_DIR and LEGACY_MODEL_DIR before running this legacy comparison script.")
+
+    data_dir = Path(configured_data)
+    model_dir = Path(configured_models)
     results_dir = Path(__file__).resolve().parents[1] / "results"
     results_dir.mkdir(exist_ok=True)
 
     healthcare_sets = {
-        "healthcare_smallcap": add_future_targets(pd.read_parquet(misc / "healthcareSmallcap.parquet")),
-        "healthcare_midcap": add_future_targets(pd.read_parquet(misc / "healthcareMidcap.parquet")),
-        "healthcare_largecap": add_future_targets(pd.read_parquet(misc / "healthcareLargecap.parquet")),
+        "healthcare_smallcap": add_future_targets(pd.read_parquet(data_dir / "healthcareSmallcap.parquet")),
+        "healthcare_midcap": add_future_targets(pd.read_parquet(data_dir / "healthcareMidcap.parquet")),
+        "healthcare_largecap": add_future_targets(pd.read_parquet(data_dir / "healthcareLargecap.parquet")),
     }
     tech_sets = {
-        "tech_smallcap": add_future_targets(pd.read_parquet(misc / "techSmallcap.parquet")),
-        "tech_midcap": add_future_targets(pd.read_parquet(misc / "techMidcap.parquet")),
-        "tech_largecap": add_future_targets(pd.read_parquet(misc / "techLargecap.parquet")),
+        "tech_smallcap": add_future_targets(pd.read_parquet(data_dir / "techSmallcap.parquet")),
+        "tech_midcap": add_future_targets(pd.read_parquet(data_dir / "techMidcap.parquet")),
+        "tech_largecap": add_future_targets(pd.read_parquet(data_dir / "techLargecap.parquet")),
     }
 
-    classifier = joblib.load(misc / "best_model.pkl")
-    reg_small = joblib.load(misc / "small_cap_model.pkl")
-    reg_mid = joblib.load(misc / "mid_cap_model.pkl")
-    reg_large = joblib.load(misc / "large_cap_model.pkl")
+    classifier = joblib.load(model_dir / "best_model.pkl")
+    reg_small = joblib.load(model_dir / "small_cap_model.pkl")
+    reg_mid = joblib.load(model_dir / "mid_cap_model.pkl")
+    reg_large = joblib.load(model_dir / "large_cap_model.pkl")
 
     lines: list[str] = []
     lines.append("Legacy classifier path")
@@ -100,4 +107,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

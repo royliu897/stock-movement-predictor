@@ -15,27 +15,28 @@ from stock_movement_predictor.healthcare_benchmark import (
 )
 
 
-def default_data_dir() -> Path:
+def configured_data_dir() -> Path:
     configured = os.environ.get("HEALTHCARE_DATA_DIR")
     if configured:
         return Path(configured)
-    return Path("/home/royl/Misc")
+    raise SystemExit("Set HEALTHCARE_DATA_DIR to the directory containing healthcareSmallcap.parquet, healthcareMidcap.parquet, and healthcareLargecap.parquet.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Recover the original notebook-style healthcare RF search path without forcing the full expensive run by default."
     )
-    parser.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Directory containing healthcareSmallcap/Midcap/Largecap parquet files")
+    parser.add_argument("--data-dir", type=Path, default=None, help="Directory containing healthcareSmallcap/Midcap/Largecap parquet files")
     parser.add_argument("--run-search", action="store_true", help="Execute the full RandomizedSearchCV -> GridSearchCV pipeline")
     parser.add_argument("--n-jobs", type=int, default=1, help="Job count for sklearn search objects when --run-search is used")
     args = parser.parse_args()
+    data_dir = args.data_dir or configured_data_dir()
 
     config = recovered_healthcare_notebook_config()
     payload = {
         "recovered_from": "Untitled--1.ipynb",
         "datasets": list(config.dataset_names),
-        "data_dir": str(args.data_dir),
+        "data_dir": str(data_dir),
         "target_definition": "close[t+7] > close[t]",
         "drop_columns_before_training": ["close", "timestamp", "symbol", "target"],
         "random_search_n_iter": config.random_search_n_iter,
@@ -57,7 +58,7 @@ def main() -> None:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
 
-    result = run_recovered_healthcare_notebook_search(args.data_dir, n_jobs=args.n_jobs)
+    result = run_recovered_healthcare_notebook_search(data_dir, n_jobs=args.n_jobs)
     payload["row_count"] = result.row_count
     payload["feature_count"] = result.feature_count
     payload["random_search_best_params"] = result.random_search_best_params

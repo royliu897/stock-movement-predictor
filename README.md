@@ -96,7 +96,7 @@ The trained model artifact is `best_model.pkl`. It is too large to commit direct
 
 `scripts/compare_saved_model.py` evaluates that artifact on the same date-blocked split used for the fresh baselines. The repo pins `scikit-learn==1.5.0` because the preserved artifact was serialized with that version.
 
-The original raw healthcare parquet files used by the training pipeline are not bundled in the repo. They lived as separate local files (`healthcareSmallcap.parquet`, `healthcareMidcap.parquet`, and `healthcareLargecap.parquet`) and are referenced through `HEALTHCARE_DATA_DIR` when you want to run the full training path.
+The original raw healthcare parquet files used by the training pipeline are not bundled in the repo. Set `HEALTHCARE_DATA_DIR` to the directory containing `healthcareSmallcap.parquet`, `healthcareMidcap.parquet`, and `healthcareLargecap.parquet` when you want to run the full training path.
 
 ## Alpaca integration
 
@@ -143,6 +143,7 @@ By default, `scripts/compare_saved_model.py` looks for `artifacts/best_model.pkl
 To inspect the training path without launching the expensive run:
 
 ```bash
+export HEALTHCARE_DATA_DIR=/path/to/parquet_dir
 python scripts/train_best_model_pipeline.py
 ```
 
