@@ -1,8 +1,40 @@
 # stock-movement-predictor
 
-This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The goal was to predict 7-day stock direction from technical and market-activity features while keeping the workflow inspectable from end to end: data collection, feature engineering, feature selection, model comparison, hyperparameter tuning, evaluation, and execution.
+This repository is a cleaned-up public version of a 2024-2025 stock-movement modeling project. The repo is centered on a simple reviewer workflow: inspect the training and tuning code, then run a fast benchmark that compares the preserved trained model artifact against untuned baselines on the same data split.
 
-The project started with linear and tree-based baselines, used random forests to narrow the engineered feature set, explored CNN and SVM variants that were less stable, and finished with a tuned tree-based workflow plus an Alpaca integration layer for signal generation and paper-trading style execution rather than live deployment.
+The underlying project used technical and market-activity features to predict 7-day stock direction, compared linear and tree-based baselines, narrowed the feature set with random forests, explored CNN and SVM variants, and finished with a tuned tree-based workflow plus an Alpaca integration layer for signal generation and paper-trading style execution rather than live deployment.
+
+## Reviewer path
+
+Install the package:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e .[dev]
+```
+
+Then run the artifact-vs-baseline comparison:
+
+```bash
+python scripts/compare_saved_model.py
+```
+
+That writes `results/healthcare_saved_model_comparison.txt`, which compares:
+
+- the majority-class baseline
+- an untuned random forest
+- a slightly stronger but still ordinary random forest
+- the preserved trained artifact `best_model.pkl`
+
+The default artifact path is `artifacts/best_model.pkl`. To point at an external copy, set `MODEL_PATH=/path/to/best_model.pkl`.
+
+If you want the full reviewer bundle instead of just the core comparison:
+
+```bash
+python scripts/run_healthcare_review.py
+pytest -q
+```
 
 ## What is in this repo
 
@@ -17,42 +49,9 @@ The project started with linear and tree-based baselines, used random forests to
 - `scripts/reconstruct_healthcare_notebook_pipeline.py`: recovered notebook-style RF search path using the original healthcare parquet layout and 5-fold CV.
 - `scripts/run_healthcare_holdout.py`: row-wise random holdout benchmark.
 - `scripts/run_healthcare_time_split.py`: leakage-safer date-blocked benchmark.
-- `scripts/compare_saved_model.py`: compares fresh baselines against `best_model.pkl` on the same forward split.
-- `scripts/run_healthcare_review.py`: one-command reproduction of the reviewer-facing benchmark path.
+- `scripts/compare_saved_model.py`: the main reviewer entrypoint; compares fresh untuned baselines against `best_model.pkl` on the same forward split.
+- `scripts/run_healthcare_review.py`: one-command bundle that regenerates the comparison, the supporting baselines, and the feature-selection outputs.
 - `docs/healthcare-experiment-notes.md`: notes on the recovered training path and feature-selection workflow.
-
-## Public reproduction path
-
-Create a virtual environment and install the package:
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e .[dev]
-```
-
-Or with `uv`:
-
-```bash
-uv venv
-uv pip install -e .[dev]
-```
-
-Then run the benchmark scripts:
-
-```bash
-python scripts/run_healthcare_review.py
-pytest -q
-```
-
-That command regenerates:
-
-- `results/healthcare_feature_selection_summary.txt`
-- `results/healthcare_holdout_summary.txt`
-- `results/healthcare_time_split_summary.txt`
-- `results/healthcare_saved_model_comparison.txt`
-
-`scripts/compare_saved_model.py` looks for `artifacts/best_model.pkl` by default. To point at an external copy, set `MODEL_PATH=/path/to/best_model.pkl`.
 
 To inspect the heavier recovered training path without running it:
 
@@ -66,7 +65,7 @@ To execute that recovered search on the original raw parquet files:
 HEALTHCARE_DATA_DIR=/path/to/parquet_dir python scripts/reconstruct_healthcare_notebook_pipeline.py --run-search
 ```
 
-## Design process
+## Project structure
 
 The original workflow had five stages:
 
@@ -76,7 +75,7 @@ The original workflow had five stages:
 4. Compare baselines, then tune stronger tree-based models with random search followed by a tighter grid.
 5. Connect the resulting model to Alpaca for signal generation and execution testing.
 
-The repo now includes two tuning paths on purpose:
+The repo includes two tuning paths on purpose:
 
 - `scripts/tune_healthcare_random_forest.py`: the lightweight public retraining path used for the committed blocked-split benchmark
 - `scripts/reconstruct_healthcare_notebook_pipeline.py`: the recovered notebook path that mirrors the original `RandomizedSearchCV -> GridSearchCV -> cv=5` workflow on the raw healthcare parquet files
@@ -94,7 +93,7 @@ Those outputs are written to:
 - `results/healthcare_feature_importances.png`
 - `results/healthcare_feature_selection_summary.txt`
 
-## Results
+## Benchmark results
 
 The repo keeps two evaluation setups.
 
