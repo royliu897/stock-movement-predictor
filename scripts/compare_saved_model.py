@@ -22,12 +22,18 @@ def default_model_path() -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare baseline models against a preserved saved model on the healthcare time split.")
+    parser = argparse.ArgumentParser(description="Run the no-leakage healthcare benchmark on baselines and the trained model artifact.")
     parser.add_argument("--model-path", type=Path, default=default_model_path(), help="Path to best_model.pkl")
+    parser.add_argument(
+        "--benchmark-model",
+        choices=("baseline", "trained", "all"),
+        default="all",
+        help="Choose whether to run the untuned baselines, the trained artifact, or both.",
+    )
     args = parser.parse_args()
 
     dataset_path = REPO_ROOT / "data" / "healthcare_market_data.parquet"
-    # Run the fresh baselines first so the trained artifact is evaluated against the exact same split.
+    # The chronological split is shared so every benchmark mode evaluates on the same forward holdout.
     results, metadata = run_healthcare_time_split_benchmark(dataset_path)
 
     results_dir = REPO_ROOT / "results"
@@ -42,16 +48,20 @@ def main() -> None:
         handle.write(f"test_rows={int(metadata['test_rows'])}\n")
         handle.write(f"train_end={metadata['train_end']}\n")
         handle.write(f"test_start={metadata['test_start']}\n")
-        for result in results:
-            handle.write(f"{result.model_name}: accuracy={result.accuracy:.4f}\n")
+        handle.write(f"benchmark_model={args.benchmark_model}\n")
 
-        if args.model_path.exists():
-            saved_result, saved_metadata = evaluate_saved_model_on_time_split(dataset_path, args.model_path)
-            handle.write(f"{saved_result.model_name}: accuracy={saved_result.accuracy:.4f}\n")
-            handle.write(f"saved_model_positive_rate={saved_metadata['positive_rate']:.4f}\n")
-        else:
-            handle.write(f"best_model.pkl: missing ({args.model_path})\n")
-            handle.write("Set MODEL_PATH or place the artifact at artifacts/best_model.pkl.\n")
+        if args.benchmark_model in {"baseline", "all"}:
+            for result in results:
+                handle.write(f"{result.model_name}: accuracy={result.accuracy:.4f}\n")
+
+        if args.benchmark_model in {"trained", "all"}:
+            if args.model_path.exists():
+                saved_result, saved_metadata = evaluate_saved_model_on_time_split(dataset_path, args.model_path)
+                handle.write(f"{saved_result.model_name}: accuracy={saved_result.accuracy:.4f}\n")
+                handle.write(f"saved_model_positive_rate={saved_metadata['positive_rate']:.4f}\n")
+            else:
+                handle.write(f"best_model.pkl: missing ({args.model_path})\n")
+                handle.write("Set MODEL_PATH or place the artifact at artifacts/best_model.pkl.\n")
 
     print(summary_path.read_text(encoding="utf-8"))
 
